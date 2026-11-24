@@ -1,0 +1,39 @@
+{
+  "manifest_version": 2,
+  "name": "Novel Scraper",
+  "description": "Downloads web novels as EPUB files (based on WebToEpub). Built into this browser.",
+  "version": "1.0.15.1",
+  "default_locale": "en",
+  "icons": {
+    "128": "book128.png"
+  },
+  "permissions": [
+    "geckoViewAddons",
+    "nativeMessaging",
+    "cookies",
+    "downloads",
+    "tabs",
+    "webRequest",
+    "webRequestBlocking",
+    "declarativeNetRequest",
+    "scripting",
+    "storage",
+    "unlimitedStorage",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "browser_action": {
+    "browser_style": false,
+    "default_title": "Novel Scraper",
+    "default_icon": "book128.png",
+    "default_popup": "popup.html"
+  },
+  "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "novel-scraper@fenixfork.local"
+    }
+  }
+}

@@ -1,0 +1,202 @@
+/*
+    Changes for a phone screen, and the styles of the parts that Novel Scraper adds to WebToEpub
+    (the plugin popup and the status line). Loaded after default.css.
+*/
+
+html {
+    -moz-text-size-adjust: none;
+    text-size-adjust: none;
+}
+
+body {
+    margin: 0;
+    font-size: 16px;
+}
+
+.container {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    border: 0;
+    padding: 8px;
+    border-radius: 0;
+}
+
+section.minWidth {
+    min-width: 0;
+}
+
+input[type=text], input[type=url], textarea, select, #manualDelayPerChapterTag {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    font-size: 16px;
+}
+
+#inputSection input,
+#inputSection table,
+#advancedOptionsSection table {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+#inputSection tbody > tr > td:first-child {
+    width: auto;
+}
+
+/* Table cells wrap instead of making the page wider than the screen. */
+td, th {
+    word-break: break-word;
+}
+
+#chapterUrlsTable input[type=text] {
+    width: 100%;
+    left: 0;
+    max-width: 100%;
+}
+
+button {
+    font-size: 15px;
+    padding: 8px 12px;
+    max-height: none;
+    margin: 2px;
+}
+
+.progressSection {
+    width: 100%;
+    box-sizing: border-box;
+    padding-left: 8px;
+    max-width: none;
+}
+
+progress {
+    width: 70%;
+}
+
+.sidebar.sidebarOpen {
+    width: 88%;
+    min-width: 0;
+}
+
+#coverUrlSection img {
+    right: 2%;
+}
+
+/* ---- Novel Scraper additions ---- */
+
+#novelPluginStatus {
+    white-space: pre-wrap;
+    font-size: 13px;
+    padding: 6px 8px;
+    margin-bottom: 8px;
+    border-radius: 5px;
+}
+
+#novelPluginStatus.novelStatusGood {
+    background: #e3f4e3;
+    color: #1b5e20;
+}
+
+#novelPluginStatus.novelStatusBad {
+    background: #fdeaea;
+    color: #8a1c1c;
+}
+
+.novelOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    box-sizing: border-box;
+}
+
+.novelOverlay[hidden] {
+    display: none;
+}
+
+.novelDialog {
+    background: #ffffff;
+    color: #202020;
+    border-radius: 12px;
+    padding: 16px;
+    width: 100%;
+    max-width: 520px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+.novelDialog h2 {
+    margin: 0 0 10px 0;
+    font-size: 19px;
+    word-break: break-word;
+}
+
+.novelDialogBody p,
+.novelDialogBody li {
+    font-size: 15px;
+    line-height: 1.4;
+}
+
+.novelDialogBody ol {
+    padding-left: 22px;
+}
+
+.novelDialog .novelWide {
+    width: 100%;
+    max-width: 100%;
+    margin: 6px 0;
+}
+
+.novelStatusLine {
+    white-space: pre-wrap;
+    font-size: 13px;
+    margin: 6px 0;
+}
+
+.novelButtons {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 12px;
+}
+
+.novelButtons button {
+    width: 100%;
+    margin: 0;
+    padding: 12px;
+    font-size: 16px;
+}
+
+button.novelPrimary {
+    background: #0060df;
+    border-color: #0060df;
+    color: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+    #novelPluginStatus.novelStatusGood {
+        background: #1d3a1f;
+        color: #b8e6ba;
+    }
+
+    #novelPluginStatus.novelStatusBad {
+        background: #4a1f1f;
+        color: #f4b8b8;
+    }
+
+    .novelDialog {
+        background: #2b2b2b;
+        color: #eeeeee;
+    }
+
+    button.novelPrimary {
+        background: #4d8cf5;
+        border-color: #4d8cf5;
+        color: #101010;
+    }
+}

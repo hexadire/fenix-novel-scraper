@@ -1,0 +1,16 @@
+# Gradle caches and local config
+.gradle/
+local.properties
+
+# Build output. Mozilla's conventions plugin redirects every project's build directory into
+# .topobjdir/gradle/build/..., so the APK ends up there. The Gradle problems/configuration-cache
+# reports are still written under the root project's build/ directory.
+.topobjdir/
+/mobile/android/fenix/build/
+*.apk
+
+# Fetched by the CI workflow (Public Suffix List used by the publicsuffixlist component)
+/netwerk/
+
+# Fetched by the workflow (zip.js and DOMPurify for the novel scraper); not kept in the repository
+mobile/android/fenix/app/src/main/assets/extensions/novel_scraper/lib/

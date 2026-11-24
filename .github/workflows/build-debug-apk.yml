@@ -1,0 +1,229 @@
+name: Build debug APK
+
+# Builds a debug APK of this Fenix fork on GitHub Actions. Not part of the upstream Mozilla source
+# (Mozilla builds with `./mach` and Taskcluster); this repository only contains the
+# mobile/android slice of mozilla-central, so a few inputs that `./mach` normally provides are
+# supplied here and in mobile/android/fenix/settings.gradle:
+#
+#   * GeckoView is downloaded from Mozilla's Maven (geckoview-nightly-omni). MOZ_BUILD_DATE below
+#     selects which published nightly; it must be a build that exists on maven.mozilla.org and
+#     should be close to the date of the mozilla-central snapshot in this repo.
+#   * The Public Suffix List (netwerk/dns/effective_tld_names.dat in mozilla-central) is fetched.
+#   * Build outputs are redirected by Mozilla's conventions plugin to .topobjdir/gradle/build/...,
+#     so the APK is found there, not under app/build/.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      gecko_build_id:
+        description: 'GeckoView nightly build ID (14 digits) to build against. Empty = default.'
+        required: false
+        default: ''
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # 14-digit build ID of a published org.mozilla.geckoview:geckoview-nightly-omni:158.0.<id>.
+  MOZ_BUILD_DATE: ${{ inputs.gecko_build_id || '20260916202159' }}
+  # The glean_parser release series the Glean Gradle plugin asks for (see the build log line
+  # "Requires glean_parser X.Y").
+  GLEAN_PARSER_SPEC: '20.1'
+
+jobs:
+  build-debug-apk:
+    name: Assemble debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Free up disk space
+        # The build output (150+ modules + GeckoView) is large; drop preinstalled tools we don't use.
+        run: |
+          df -h / | tail -n 1
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /opt/hostedtoolcache/CodeQL \
+                      "${ANDROID_HOME:-/usr/local/lib/android/sdk}/ndk" || true
+          df -h / | tail -n 1
+
+      - name: Add swap space
+        # Private-repo runners have 7 GB of RAM; Gradle plus the Kotlin compiler daemon can exceed
+        # that at peaks, and the kernel would kill a process instead of slowing down.
+        run: |
+          sudo swapoff -a || true
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile > /dev/null
+          sudo swapon /swapfile
+          free -m | head -n 3
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+
+      - name: Accept Android SDK licenses
+        run: |
+          yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - name: Use the fixed debug signing key
+        # GitHub runners are fresh machines, so without this each run would sign the APK with a newly generated
+        # random debug key and Android would refuse to install a build over the previous one. This is the standard
+        # public debug key (password "android"), not a secret.
+        run: |
+          mkdir -p ~/.android
+          cp .github/keys/debug.keystore ~/.android/debug.keystore
+
+      - name: Fetch Public Suffix List
+        run: |
+          mkdir -p netwerk/dns
+          curl -fsSL --retry 3 https://publicsuffix.org/list/public_suffix_list.dat -o netwerk/dns/effective_tld_names.dat \
+            || curl -fsSL --retry 3 https://raw.githubusercontent.com/publicsuffix/list/main/public_suffix_list.dat -o netwerk/dns/effective_tld_names.dat
+          test "$(wc -c < netwerk/dns/effective_tld_names.dat)" -gt 100000
+          grep -q "BEGIN ICANN DOMAINS" netwerk/dns/effective_tld_names.dat
+          echo "Public Suffix List: $(wc -l < netwerk/dns/effective_tld_names.dat) lines"
+
+      - name: Fetch the libraries of the novel scraper
+        # The novel scraper (assets/extensions/novel_scraper) is WebToEpub. Its page needs zip.js (writes the EPUB)
+        # and DOMPurify (cleans chapters). They are not kept in the repository: they come from npm, the same
+        # packages that WebToEpub's own `npm install` copies (package.json there).
+        working-directory: mobile/android/fenix/app/src/main/assets/extensions/novel_scraper
+        run: |
+          mkdir -p lib
+          LIBS="$(mktemp -d)"
+          (cd "$LIBS" && npm init -y >/dev/null && npm install --no-audit --no-fund "@zip.js/zip.js@~2.7.72" "dompurify@^3.2.6")
+          cp "$LIBS/node_modules/@zip.js/zip.js/dist/zip-no-worker.min.js" lib/zip-no-worker.min.js
+          cp "$LIBS/node_modules/dompurify/dist/purify.min.js" lib/purify.min.js
+          test "$(wc -c < lib/zip-no-worker.min.js)" -gt 10000
+          test "$(wc -c < lib/purify.min.js)" -gt 10000
+          grep -q 'lib/zip-no-worker.min.js' popup.html && grep -q 'lib/purify.min.js' popup.html
+          echo "zip.js: $(wc -c < lib/zip-no-worker.min.js) bytes, DOMPurify: $(wc -c < lib/purify.min.js) bytes"
+
+      - name: Create Python venv with glean_parser
+        # Mozilla's `./mach` normally provides this venv. The Glean Gradle plugin prints which
+        # glean_parser it needs ("Requires glean_parser X.Y"); `~=X.Y` accepts any compatible release.
+        run: |
+          python3 -m venv .topobjdir/glean-venv
+          .topobjdir/glean-venv/bin/python -m pip install --quiet --upgrade pip
+          .topobjdir/glean-venv/bin/python -m pip install --quiet "glean_parser~=${GLEAN_PARSER_SPEC}"
+          .topobjdir/glean-venv/bin/python -m pip show glean_parser | head -n 2
+
+      - name: Check the pinned GeckoView build exists
+        run: |
+          APP_VERSION="$(head -n 1 mobile/android/version.txt | sed 's/a[0-9]*$//')"
+          GV="${APP_VERSION}.${MOZ_BUILD_DATE}"
+          URL="https://maven.mozilla.org/maven2/org/mozilla/geckoview/geckoview-nightly-omni/${GV}/geckoview-nightly-omni-${GV}.pom"
+          echo "Expecting geckoview-nightly-omni:${GV}"
+          if curl -fsSL --retry 2 -r 0-0 -o /dev/null "$URL"; then
+            echo "Found."
+          else
+            echo "::warning::Could not confirm geckoview-nightly-omni:${GV} at ${URL}. If the build fails resolving GeckoView, pick another published build ID (workflow_dispatch input)."
+          fi
+
+      - name: Show environment
+        run: |
+          java -version 2>&1 | head -n 1
+          python3 --version
+          echo "ANDROID_HOME=${ANDROID_HOME}"
+          nproc
+          free -m | head -n 2
+          df -h / | tail -n 1
+
+      - name: Assemble debug APK
+        id: build
+        shell: bash
+        working-directory: mobile/android/fenix
+        run: |
+          # Everything printed from here on is also written to gradle-build.log (uploaded on failure).
+          exec > >(tee "${GITHUB_WORKSPACE}/gradle-build.log") 2>&1
+          trap 'sleep 2' EXIT   # give tee a moment to flush the last lines
+          chmod +x ./gradlew
+          MEM_GB="$(awk '/MemTotal/ {printf "%d", $2/1024/1024}' /proc/meminfo)"
+          if [ "${MEM_GB}" -ge 14 ]; then GRADLE_XMX=6g; KOTLIN_XMX=5g; else GRADLE_XMX=3g; KOTLIN_XMX=3g; fi
+          echo "== Environment =="
+          echo "cpus=$(nproc) memory=${MEM_GB}GB heap: gradle=${GRADLE_XMX} kotlin=${KOTLIN_XMX}"
+          java -version 2>&1 | head -n 1
+          python3 --version
+          echo "ANDROID_HOME=${ANDROID_HOME} MOZ_BUILD_DATE=${MOZ_BUILD_DATE}"
+          df -h / | tail -n 1
+          echo "== Gradle =="
+          # --no-configuration-cache: the objdir stand-ins (CrashReport.kt, buildid.h) are created while
+          # settings.gradle is evaluated, which a configuration-cache hit would skip.
+          # --continue: keep building independent modules after a failure, so one run reports every
+          # failing module instead of only the first.
+          ./gradlew :app:assembleDebug \
+            --continue --stacktrace --no-daemon --no-configuration-cache --build-cache --console=plain \
+            "-Dorg.gradle.jvmargs=-Xmx${GRADLE_XMX} -XX:MaxMetaspaceSize=1g -XX:+UseParallelGC -XX:+HeapDumpOnOutOfMemoryError" \
+            "-Pkotlin.daemon.jvmargs=-Xmx${KOTLIN_XMX} -XX:+UseParallelGC"
+
+      - name: Summarize failure
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo "## Build failed"
+            echo
+            echo "### Failed tasks"
+            echo '```'
+            (grep -oE "Execution failed for task '[^']+'" gradle-build.log | sort -u || true) | head -n 40
+            echo '```'
+            echo
+            echo "### Gradle failure"
+            echo '```'
+            (grep -n -m1 -A40 "^FAILURE:" gradle-build.log || tail -n 60 gradle-build.log) | cut -c1-400
+            echo '```'
+            echo
+            echo "### First compiler / resolution errors"
+            echo '```'
+            (grep -nE "^e: |: error: |Could not (resolve|find|GET|HEAD)|Unresolved reference|OutOfMemoryError|Killed" gradle-build.log | sed -E 's#file:///home/runner/work/[^/]+/[^/]+/##' | head -n 60 || true) | cut -c1-400
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Locate built APK(s)
+        id: find_apk
+        shell: bash
+        run: |
+          APK_DIR=".topobjdir/gradle/build/mobile/android/fenix/app/outputs/apk/debug"
+          echo "Looking in ${APK_DIR}"
+          find "${APK_DIR}" -iname "*.apk" -print 2>/dev/null || true
+          if [ -z "$(find "${APK_DIR}" -iname '*.apk' 2>/dev/null)" ]; then
+            echo "::error::No debug APK in ${APK_DIR}. Other APKs under .topobjdir:"
+            find .topobjdir -iname "*.apk" -print | head -n 20 || true
+            exit 1
+          fi
+
+      - name: Upload debug APK(s)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fenix-debug-apk
+          path: .topobjdir/gradle/build/mobile/android/fenix/app/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            gradle-build.log
+            mobile/android/fenix/build/reports/**
+          if-no-files-found: ignore
+          retention-days: 7

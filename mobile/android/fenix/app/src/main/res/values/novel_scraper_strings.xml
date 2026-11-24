@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
+<!-- The texts of the novel scraper (package org.mozilla.fenix.novelscraper). They are in a file of their own, so that
+     the strings the app gets from Mozilla stay untouched. -->
+<resources>
+    <!-- Settings -->
+    <string name="pref_key_novel_plugins" translatable="false">pref_key_novel_plugins</string>
+    <string name="novel_plugins_settings_title">Novel scraper plugins</string>
+    <string name="novel_plugins_settings_summary">Import, switch on and off, and delete the plugins for novel sites</string>
+
+    <!-- The plugins screen -->
+    <string name="novel_plugins_title">Novel scraper plugins</string>
+    <string name="novel_plugins_back">Back</string>
+    <string name="novel_plugins_intro">A plugin teaches the novel scraper how to read one website. When a site has no plugin, the scraper offers to prepare a request file for Claude. Import the JavaScript that Claude writes here, and the scraper uses it from then on.</string>
+    <string name="novel_plugins_how_to">Open the scraper from the main menu, under Extensions, as Novel Scraper. Open the novel page in the scraper again after importing a plugin.</string>
+    <string name="novel_plugins_import_file">Import from file</string>
+    <string name="novel_plugins_paste">Paste from clipboard</string>
+    <string name="novel_plugins_list_title">Imported plugins (%1$d)</string>
+    <string name="novel_plugins_empty">No plugins imported yet.</string>
+    <string name="novel_plugins_sites">Sites: %1$s</string>
+    <string name="novel_plugins_no_sites">Sites: chosen by a rule in the plugin</string>
+    <string name="novel_plugins_size">%1$d KB</string>
+    <string name="novel_plugins_export">Export</string>
+    <string name="novel_plugins_delete">Delete</string>
+    <string name="novel_plugins_delete_title">Delete this plugin?</string>
+    <string name="novel_plugins_delete_message">%1$s will be removed. For its sites the scraper goes back to the built-in parsers.</string>
+    <string name="novel_plugins_import_result">Import</string>
+    <string name="novel_plugins_added">Imported: %1$s</string>
+    <string name="novel_plugins_duplicate">Already imported: %1$s</string>
+    <string name="novel_plugins_not_a_plugin">This is not a plugin. It does not register a parser with parserFactory.register(…).</string>
+    <string name="novel_plugins_empty_input">There is nothing to import.</string>
+    <string name="novel_plugins_too_large">The file is too large for a plugin.</string>
+    <string name="novel_plugins_not_saved">The plugin could not be saved.</string>
+    <string name="novel_plugins_unreadable">The file could not be read.</string>
+    <string name="novel_plugins_clipboard_empty">The clipboard has no text.</string>
+    <string name="novel_plugins_exported">Plugin saved.</string>
+</resources>
