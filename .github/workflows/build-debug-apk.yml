@@ -45,20 +45,29 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Check that no binary files are missing
-        # Binary files (images, the Gradle wrapper jar, the debug key) are the easiest files to lose when a repository
-        # is uploaded by hand. This lists every missing one at once, instead of the build failing on them one by one.
+      - name: Check that no files are missing
+        # A repository that is uploaded by hand easily loses files (the Gradle wrapper, the debug key, files without
+        # an extension, images). This lists every missing file at once, instead of the build failing on them one by
+        # one. .github/repo-manifest.txt is the list of what the build needs.
         run: |
-          missing=0
+          grep -v '^#' .github/repo-manifest.txt | grep -v '^$' > "$RUNNER_TEMP/expected.txt"
+          : > "$RUNNER_TEMP/missing.txt"
           while IFS= read -r file; do
-            case "$file" in ''|'#'*) continue ;; esac
-            if [ ! -s "$file" ]; then
-              echo "::error::Missing file: $file"
-              missing=$((missing + 1))
-            fi
-          done < .github/binary-files.txt
-          echo "Missing binary files: $missing"
-          test "$missing" -eq 0
+            [ -e "$file" ] || echo "$file" >> "$RUNNER_TEMP/missing.txt"
+          done < "$RUNNER_TEMP/expected.txt"
+          total=$(wc -l < "$RUNNER_TEMP/expected.txt")
+          missing=$(wc -l < "$RUNNER_TEMP/missing.txt")
+          echo "Files expected: $total, missing: $missing"
+          if [ "$missing" -gt 0 ]; then
+            head -n 40 "$RUNNER_TEMP/missing.txt" | sed 's/^/::error::Missing file: /'
+            {
+              echo "## Missing files ($missing of $total)"
+              echo '```'
+              head -n 400 "$RUNNER_TEMP/missing.txt"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
       - name: Free up disk space
         # The build output (150+ modules + GeckoView) is large; drop preinstalled tools we don't use.

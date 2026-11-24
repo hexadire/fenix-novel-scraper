@@ -11,6 +11,3 @@ local.properties
 
 # Fetched by the CI workflow (Public Suffix List used by the publicsuffixlist component)
 /netwerk/
-
-# Fetched by the workflow (zip.js and DOMPurify for the novel scraper); not kept in the repository
-mobile/android/fenix/app/src/main/assets/extensions/novel_scraper/lib/
