@@ -1,5 +1,11 @@
 name: Build debug APK
 
+# THIS REPOSITORY ONLY HOLDS THE NOVEL SCRAPER. The Fenix fork itself lives in another repository (BASE_REPO below).
+# The first steps check that repository out, add the novel scraper to it (.github/scripts/apply_overlay.py) and remove
+# the translations (.github/scripts/english_only.py, only English is built). Everything after that is the build of the
+# Fenix fork as it always was. If BASE_REPO is private, give this repository a secret BASE_REPO_TOKEN: a personal access
+# token that may read the contents of BASE_REPO (Settings > Secrets and variables > Actions).
+#
 # Builds a debug APK of this Fenix fork on GitHub Actions. Not part of the upstream Mozilla source
 # (Mozilla builds with `./mach` and Taskcluster); this repository only contains the
 # mobile/android slice of mozilla-central, so a few inputs that `./mach` normally provides are
@@ -29,6 +35,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # The repository with the Fenix fork (the one fenix-prodwind-main.zip came from) and its branch.
+  BASE_REPO: hexadire/fenix-prodwind
+  BASE_REF: main
   # 14-digit build ID of a published org.mozilla.geckoview:geckoview-nightly-omni:158.0.<id>.
   MOZ_BUILD_DATE: ${{ inputs.gecko_build_id || '20260916202159' }}
   # The glean_parser release series the Glean Gradle plugin asks for (see the build log line
@@ -42,32 +51,44 @@ jobs:
     timeout-minutes: 300
 
     steps:
-      - name: Check out repository
+      - name: Check out the Fenix fork
         uses: actions/checkout@v4
+        with:
+          repository: ${{ env.BASE_REPO }}
+          ref: ${{ env.BASE_REF }}
+          token: ${{ secrets.BASE_REPO_TOKEN || github.token }}
 
-      - name: Check that no files are missing
-        # A repository that is uploaded by hand easily loses files (the Gradle wrapper, the debug key, files without
-        # an extension, images). This lists every missing file at once, instead of the build failing on them one by
-        # one. .github/repo-manifest.txt is the list of what the build needs.
+      - name: Check out the novel scraper (this repository)
+        uses: actions/checkout@v4
+        with:
+          path: novel-scraper-overlay
+
+      - name: Add the novel scraper to the Fenix fork
+        # Also removes the translations (about 4,500 resource folders) so that only English is built: a smaller APK and
+        # a faster build. Only the checkout of this run is changed, not the repositories.
         run: |
-          grep -v '^#' .github/repo-manifest.txt | grep -v '^$' > "$RUNNER_TEMP/expected.txt"
-          : > "$RUNNER_TEMP/missing.txt"
-          while IFS= read -r file; do
-            [ -e "$file" ] || echo "$file" >> "$RUNNER_TEMP/missing.txt"
-          done < "$RUNNER_TEMP/expected.txt"
-          total=$(wc -l < "$RUNNER_TEMP/expected.txt")
-          missing=$(wc -l < "$RUNNER_TEMP/missing.txt")
-          echo "Files expected: $total, missing: $missing"
-          if [ "$missing" -gt 0 ]; then
-            head -n 40 "$RUNNER_TEMP/missing.txt" | sed 's/^/::error::Missing file: /'
-            {
-              echo "## Missing files ($missing of $total)"
-              echo '```'
-              head -n 400 "$RUNNER_TEMP/missing.txt"
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
+          python3 novel-scraper-overlay/.github/scripts/apply_overlay.py novel-scraper-overlay .
+          python3 novel-scraper-overlay/.github/scripts/english_only.py .
+          rm -rf novel-scraper-overlay
+
+      - name: Check that the sources are complete
+        run: |
+          missing=0
+          for file in mobile/android/fenix/gradlew \
+                      mobile/android/fenix/gradle/wrapper/gradle-wrapper.jar \
+                      mobile/android/fenix/settings.gradle \
+                      mobile/android/fenix/app/build.gradle \
+                      mobile/android/android-components/gradlew \
+                      gradle/libs.versions.toml \
+                      .github/keys/debug.keystore \
+                      mobile/android/fenix/app/src/main/assets/extensions/novel_scraper/manifest.json \
+                      mobile/android/fenix/app/src/main/java/org/mozilla/fenix/novelscraper/NovelScraper.kt; do
+            if [ ! -e "$file" ]; then
+              echo "::error::Missing file: $file (is BASE_REPO ${BASE_REPO}@${BASE_REF} the full Fenix fork?)"
+              missing=1
+            fi
+          done
+          test "$missing" -eq 0
 
       - name: Free up disk space
         # The build output (150+ modules + GeckoView) is large; drop preinstalled tools we don't use.

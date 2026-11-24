@@ -11,6 +11,9 @@
     <string name="novel_plugins_settings_title">Novel scraper plugins</string>
     <string name="novel_plugins_settings_summary">Import, switch on and off, and delete the plugins for novel sites</string>
 
+    <!-- Backup and restore: the name of the section -->
+    <string name="backup_section_novel_plugins">Novel scraper plugins</string>
+
     <!-- The plugins screen -->
     <string name="novel_plugins_title">Novel scraper plugins</string>
     <string name="novel_plugins_back">Back</string>

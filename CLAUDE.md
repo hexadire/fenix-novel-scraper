@@ -83,6 +83,13 @@ rest), and update `README.md` when the list of sections or the rules change.
 
 ## Novel scraper
 
+**How this repository is organised.** This repository holds only the novel scraper. The Fenix fork lives in its own
+repository (`BASE_REPO` in `.github/workflows/build-debug-apk.yml`). The workflow checks that repository out, runs
+`.github/scripts/apply_overlay.py` (copies the new files and makes the few small edits to existing files of the fork,
+every edit by anchor and safe to repeat) and `.github/scripts/english_only.py` (removes the translations for this
+build), and then builds as before. The paths below are paths in the Fenix fork after that step. When the fork changes
+one of the files the script edits and an anchor is gone, the script stops and names the file.
+
 The browser can download web novels as EPUB files. The engine is **WebToEpub** (its "experimental tab mode" branch),
 built into the app as an extension; the app adds what an extension cannot do alone: the store of plugins, the settings
 screen for them and the backup of them.
@@ -122,6 +129,7 @@ Things that are easy to break:
 5. **Backup:** the plugins are saved (`NovelPluginsSection`). What the scraper page keeps itself (its options, its
    library of downloaded novels, the "do not ask again" choices) lives in the extension's storage, which the backup
    leaves out like all add-ons.
-6. **Mozilla's own files:** the feature adds new files and small edits to existing ones: `Core.kt` (install),
-   `AndroidManifest.xml` (activity), `preferences.xml` and `SettingsFragment.kt` (the settings entry),
-   `BackupSections.kt` and `backup/README.md` (the section). Its texts are in `novel_scraper_strings.xml`.
+6. **Mozilla's own files:** the script `apply_overlay.py` edits `Core.kt` (install), `AndroidManifest.xml` (activity),
+   `preferences.xml` and `SettingsFragment.kt` (the settings entry) and `BackupSections.kt` (the section). Everything
+   else is new files, copied as they are. The texts, including the name of the backup section, are in
+   `novel_scraper_strings.xml`.
