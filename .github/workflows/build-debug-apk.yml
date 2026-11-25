@@ -1,12 +1,13 @@
 name: Build debug APK
 
 # THE NOVEL SCRAPER IS ADDED AT BUILD TIME. This repository needs the Fenix fork (mobile/android/..., gradle/...) next
-# to the files of the novel scraper. The workflow uses what this repository has; when the Fenix source is not in it, it
-# takes it from BASE_REPO (below), if that is set. Then it adds the novel scraper to the Fenix source
-# (.github/scripts/apply_overlay.py: new files, and a few small edits that are safe to repeat) and removes the
-# translations (.github/scripts/english_only.py: only English is built). Everything after that is the build of the
-# Fenix fork as it always was. If BASE_REPO is private, give this repository a secret BASE_REPO_TOKEN: a personal access
-# token that may read the contents of BASE_REPO (Settings > Secrets and variables > Actions).
+# to the files of the novel scraper. The workflow uses what this repository has (the files, or fenix-source.zip in the
+# root of the repository); when the Fenix source is not there, it takes it from BASE_REPO (below), if that is set.
+# Then it adds the novel scraper to the Fenix source (.github/scripts/apply_overlay.py: new files, and a few small
+# edits that are safe to repeat) and removes the translations (.github/scripts/english_only.py: only English is
+# built). Everything after that is the build of the Fenix fork as it always was. If BASE_REPO is private, give this
+# repository a secret BASE_REPO_TOKEN: a personal access token that may read the contents of BASE_REPO
+# (Settings > Secrets and variables > Actions).
 #
 # Builds a debug APK of this Fenix fork on GitHub Actions. Not part of the upstream Mozilla source
 # (Mozilla builds with `./mach` and Taskcluster); this repository only contains the
@@ -57,15 +58,25 @@ jobs:
       - name: Check out this repository
         uses: actions/checkout@v4
 
-      - name: Look for the Fenix source in this repository
+      - name: Find the Fenix source in this repository
+        # Either the files of the Fenix fork are in the repository, or they are in fenix-source.zip (one file in the
+        # root of the repository, easy to upload; it is unpacked here for this run only).
         id: source
         run: |
-          if [ -f mobile/android/fenix/gradlew ] && [ -f gradle/libs.versions.toml ]; then
+          is_complete() { [ -f mobile/android/fenix/gradlew ] && [ -f gradle/libs.versions.toml ] && [ -f mobile/android/fenix/app/build.gradle ]; }
+          if ! is_complete; then
+            shopt -s nullglob
+            for zip in fenix-source*.zip; do
+              echo "Unpacking $zip"
+              unzip -q -o "$zip"
+            done
+          fi
+          if is_complete; then
             echo "complete=true" >> "$GITHUB_OUTPUT"
-            echo "The Fenix source is in this repository."
+            echo "The Fenix source is here."
           else
             echo "complete=false" >> "$GITHUB_OUTPUT"
-            echo "The Fenix source is not in this repository."
+            echo "The Fenix source is not here."
           fi
 
       - name: Check out the Fenix fork (BASE_REPO)
@@ -100,7 +111,7 @@ jobs:
             fi
           done
           if [ "$missing" -ne 0 ]; then
-            echo "::error::The Fenix source is not in this repository (BASE_REPO='${BASE_REPO}'). Either upload the files of the Fenix fork to this repository, or set BASE_REPO at the top of the workflow to the repository that has them."
+            echo "::error::The Fenix source is not in this repository (BASE_REPO='${BASE_REPO}'). Upload fenix-source.zip to the root of this repository (one file, do not unpack it), or upload the files of the Fenix fork to this repository, or set BASE_REPO at the top of the workflow to the repository that has them."
             exit 1
           fi
 
