@@ -9,8 +9,11 @@ AI. They list the things that are easy to break and expensive to find out about.
 The APK from a build must install **over** the app that is already on the phone, so that settings, logins, tabs and
 everything else survive. Android only allows that when all of these hold:
 
-1. **Same package name.** `applicationId` plus the `.fenix.debug` suffix of the debug build type, in
-   `mobile/android/fenix/app/build.gradle`. Never change either.
+1. **Same package name.** In this repository `applicationId` is `dev.personal.novelscraper` (set by
+   `.github/scripts/apply_overlay.py`, `NEW_APPLICATION_ID`) plus the `.fenix.debug` suffix of the debug build type, in
+   `mobile/android/fenix/app/build.gradle`: the app is installed as `dev.personal.novelscraper.fenix.debug`, a separate
+   app from the other Fenix builds (the label under its icon, "Novel Scraper", is in
+   `app/src/debug/res/values/novel_scraper_app_name.xml`). Never change either.
 2. **Same signing key.** Every build is signed with `.github/keys/debug.keystore` (the workflow copies it to
    `~/.android/debug.keystore`). Never replace or regenerate it, and never sign debug builds with another key.
 3. **A versionCode that is not lower than the installed one.** The debug `versionCode` is
@@ -18,6 +21,9 @@ everything else survive. Android only allows that when all of these hold:
    2026-01-01 UTC. It only ever goes up, whatever runs the build (CI, a re-run, another workflow, another repository, a
    local build). **Never lower it and never switch to a scheme that can produce smaller numbers**, such as a CI run
    number, a counter or a constant. Android's maximum is 2100000000, which this scheme reaches around the year 2121.
+
+(The `build.gradle` this repository is built from takes the debug `versionCode` from `GITHUB_RUN_NUMBER`, which only
+goes up as well; the scheme described next is not in it.)
 
 `Verify APK signature and version code` in the workflow checks 2 and 3 on every APK it builds, writes a table into the
 job summary, and fails the job when an APK would not install as an update. If the scheme in `build.gradle` ever has to

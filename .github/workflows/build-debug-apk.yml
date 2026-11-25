@@ -285,6 +285,24 @@ jobs:
             exit 1
           fi
 
+      - name: Describe the APK
+        # Writes the package name, version, SDK levels and the check of the signature into the summary of the run, so a
+        # problem with installing can be traced. It never fails the build.
+        if: success()
+        continue-on-error: true
+        shell: bash
+        run: |
+          APK="$(find .topobjdir/gradle/build/mobile/android/fenix/app/outputs/apk/debug -iname '*.apk' | head -n 1)"
+          TOOLS="$(ls -d "${ANDROID_HOME}"/build-tools/* | sort -V | tail -n 1)"
+          {
+            echo "## The APK"
+            echo '```'
+            ls -l "$APK" | cut -c1-200
+            "${TOOLS}/aapt2" dump badging "$APK" | grep -E "^package:|^sdkVersion|^targetSdkVersion|^application-label:|^native-code" | cut -c1-200
+            "${TOOLS}/apksigner" verify --verbose --print-certs "$APK" 2>&1 | head -n 12
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload debug APK(s)
         if: success()
         uses: actions/upload-artifact@v4

@@ -26,6 +26,7 @@ COPY = [
     JAVA + "/novelscraper",
     JAVA + "/backup/sections/NovelPluginsSection.kt",
     FENIX + "/res/values/novel_scraper_strings.xml",
+    "mobile/android/fenix/app/src/debug/res/values/novel_scraper_app_name.xml",
 ]
 
 
@@ -141,7 +142,24 @@ def edit_backup_strings(text):
     return re.sub(r'[ \t]*<string name="backup_section_novel_plugins">[^<]*</string>[ \t]*\n?', "", text)
 
 
+NEW_APPLICATION_ID = "dev.personal.novelscraper"
+
+
+def edit_application_id(text):
+    """Gives the app its own application id (installed as dev.personal.novelscraper.fenix.debug), so that it is a
+    separate app next to the other Fenix builds: no update of them, no clash of version numbers or data."""
+    pattern = re.compile(r'^([ \t]*)applicationId[ \t]+"([^"]*)"', re.M)
+    match = pattern.search(text)
+    if not match:
+        fail("app/build.gradle: 'applicationId \"...\"' was not found.")
+    if match.group(2) == NEW_APPLICATION_ID:
+        return text
+    return text[:match.start()] + match.group(1) + '// Novel scraper: its own app, next to the other Fenix builds (was "' + match.group(2) + '").\n' \
+        + match.group(1) + 'applicationId "' + NEW_APPLICATION_ID + '"' + text[match.end():]
+
+
 EDITS = [
+    ("mobile/android/fenix/app/build.gradle", edit_application_id),
     (FENIX + "/res/values/backup_strings.xml", edit_backup_strings),
     (JAVA + "/components/Core.kt", edit_core),
     (JAVA + "/settings/SettingsFragment.kt", edit_settings_fragment),
