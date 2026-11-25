@@ -1,8 +1,10 @@
 name: Build debug APK
 
-# THIS REPOSITORY ONLY HOLDS THE NOVEL SCRAPER. The Fenix fork itself lives in another repository (BASE_REPO below).
-# The first steps check that repository out, add the novel scraper to it (.github/scripts/apply_overlay.py) and remove
-# the translations (.github/scripts/english_only.py, only English is built). Everything after that is the build of the
+# THE NOVEL SCRAPER IS ADDED AT BUILD TIME. This repository needs the Fenix fork (mobile/android/..., gradle/...) next
+# to the files of the novel scraper. The workflow uses what this repository has; when the Fenix source is not in it, it
+# takes it from BASE_REPO (below), if that is set. Then it adds the novel scraper to the Fenix source
+# (.github/scripts/apply_overlay.py: new files, and a few small edits that are safe to repeat) and removes the
+# translations (.github/scripts/english_only.py: only English is built). Everything after that is the build of the
 # Fenix fork as it always was. If BASE_REPO is private, give this repository a secret BASE_REPO_TOKEN: a personal access
 # token that may read the contents of BASE_REPO (Settings > Secrets and variables > Actions).
 #
@@ -35,8 +37,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # The repository with the Fenix fork (the one fenix-prodwind-main.zip came from) and its branch.
-  BASE_REPO: hexadire/fenix-prodwind
+  # Only needed when the Fenix source is NOT in this repository: the repository that has it (owner/name), for example
+  # hexadire/fenix-prodwind, and its branch. Leave empty when the Fenix source is in this repository.
+  BASE_REPO: ''
   BASE_REF: main
   # 14-digit build ID of a published org.mozilla.geckoview:geckoview-nightly-omni:158.0.<id>.
   MOZ_BUILD_DATE: ${{ inputs.gecko_build_id || '20260916202159' }}
@@ -51,27 +54,36 @@ jobs:
     timeout-minutes: 300
 
     steps:
-      - name: Check out the Fenix fork
+      - name: Check out this repository
+        uses: actions/checkout@v4
+
+      - name: Look for the Fenix source in this repository
+        id: source
+        run: |
+          if [ -f mobile/android/fenix/gradlew ] && [ -f gradle/libs.versions.toml ]; then
+            echo "complete=true" >> "$GITHUB_OUTPUT"
+            echo "The Fenix source is in this repository."
+          else
+            echo "complete=false" >> "$GITHUB_OUTPUT"
+            echo "The Fenix source is not in this repository."
+          fi
+
+      - name: Check out the Fenix fork (BASE_REPO)
+        if: steps.source.outputs.complete != 'true' && env.BASE_REPO != ''
         uses: actions/checkout@v4
         with:
           repository: ${{ env.BASE_REPO }}
           ref: ${{ env.BASE_REF }}
           token: ${{ secrets.BASE_REPO_TOKEN || github.token }}
+          path: fenix-base
 
-      - name: Check out the novel scraper (this repository)
-        uses: actions/checkout@v4
-        with:
-          path: novel-scraper-overlay
-
-      - name: Add the novel scraper to the Fenix fork
-        # Also removes the translations (about 4,500 resource folders) so that only English is built: a smaller APK and
-        # a faster build. Only the checkout of this run is changed, not the repositories.
+      - name: Put the Fenix fork under the files of the novel scraper
+        if: steps.source.outputs.complete != 'true' && env.BASE_REPO != ''
         run: |
-          python3 novel-scraper-overlay/.github/scripts/apply_overlay.py novel-scraper-overlay .
-          python3 novel-scraper-overlay/.github/scripts/english_only.py .
-          rm -rf novel-scraper-overlay
+          (cd fenix-base && tar --exclude=./.git -cf - .) | tar -xf -
+          rm -rf fenix-base
 
-      - name: Check that the sources are complete
+      - name: Check that the Fenix source is complete
         run: |
           missing=0
           for file in mobile/android/fenix/gradlew \
@@ -79,16 +91,25 @@ jobs:
                       mobile/android/fenix/settings.gradle \
                       mobile/android/fenix/app/build.gradle \
                       mobile/android/android-components/gradlew \
+                      mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/Core.kt \
                       gradle/libs.versions.toml \
-                      .github/keys/debug.keystore \
-                      mobile/android/fenix/app/src/main/assets/extensions/novel_scraper/manifest.json \
-                      mobile/android/fenix/app/src/main/java/org/mozilla/fenix/novelscraper/NovelScraper.kt; do
+                      .github/keys/debug.keystore; do
             if [ ! -e "$file" ]; then
-              echo "::error::Missing file: $file (is BASE_REPO ${BASE_REPO}@${BASE_REF} the full Fenix fork?)"
+              echo "::error::Missing file: $file"
               missing=1
             fi
           done
-          test "$missing" -eq 0
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::The Fenix source is not in this repository (BASE_REPO='${BASE_REPO}'). Either upload the files of the Fenix fork to this repository, or set BASE_REPO at the top of the workflow to the repository that has them."
+            exit 1
+          fi
+
+      - name: Add the novel scraper and keep English only
+        # Adds the novel scraper to the Fenix source, and removes the translations (about 4,500 resource folders) so that
+        # only English is built: a smaller APK and a faster build. Only the checkout of this run is changed.
+        run: |
+          python3 .github/scripts/apply_overlay.py . .
+          python3 .github/scripts/english_only.py .
 
       - name: Free up disk space
         # The build output (150+ modules + GeckoView) is large; drop preinstalled tools we don't use.

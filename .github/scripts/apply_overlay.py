@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Adds the novel scraper to a checkout of the Fenix fork.
 
-usage: apply_overlay.py <this repository> <the Fenix fork>
+usage: apply_overlay.py <folder with the novel scraper files> <folder with the Fenix fork>
+(both can be the same folder: then the new files are already in place and only the edits are made)
 
 This repository holds only what the novel scraper adds. The workflow checks out the Fenix fork next to it and runs
 this script, which
@@ -134,7 +135,14 @@ def edit_backup_sections(text):
     return add_import(text, "import org.mozilla.fenix.backup.sections.NovelPluginsSection")
 
 
+def edit_backup_strings(text):
+    """The name of the backup section is in novel_scraper_strings.xml now. An earlier version of the novel scraper put
+    it in backup_strings.xml: take it out, or the string would be defined twice."""
+    return re.sub(r'[ \t]*<string name="backup_section_novel_plugins">[^<]*</string>[ \t]*\n?', "", text)
+
+
 EDITS = [
+    (FENIX + "/res/values/backup_strings.xml", edit_backup_strings),
     (JAVA + "/components/Core.kt", edit_core),
     (JAVA + "/settings/SettingsFragment.kt", edit_settings_fragment),
     (FENIX + "/res/xml/preferences.xml", edit_preferences),
@@ -145,21 +153,25 @@ EDITS = [
 
 def main():
     if len(sys.argv) != 3:
-        fail("usage: apply_overlay.py <this repository> <the Fenix fork>")
+        fail("usage: apply_overlay.py <novel scraper files> <Fenix fork>")
     overlay = pathlib.Path(sys.argv[1])
     target = pathlib.Path(sys.argv[2])
 
+    in_place = overlay.resolve() == target.resolve()
     for relative in COPY:
         source = overlay / relative
         destination = target / relative
         if not source.exists():
-            fail("This repository has no " + relative + ".")
-        if source.is_dir():
+            fail("The novel scraper files have no " + relative + ".")
+        if in_place:
+            print("in place " + relative)
+        elif source.is_dir():
             shutil.copytree(source, destination, dirs_exist_ok=True)
         else:
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, destination)
-        print("copied  " + relative)
+        if not in_place:
+            print("copied  " + relative)
 
     for relative, edit in EDITS:
         path = target / relative

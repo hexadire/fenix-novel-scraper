@@ -83,11 +83,12 @@ rest), and update `README.md` when the list of sections or the rules change.
 
 ## Novel scraper
 
-**How this repository is organised.** This repository holds only the novel scraper. The Fenix fork lives in its own
-repository (`BASE_REPO` in `.github/workflows/build-debug-apk.yml`). The workflow checks that repository out, runs
-`.github/scripts/apply_overlay.py` (copies the new files and makes the few small edits to existing files of the fork,
+**How the build is put together.** The novel scraper is added to the Fenix source at build time. The workflow uses the
+Fenix source of this repository, or, when this repository does not have it, checks out the repository named in
+`BASE_REPO` (top of `.github/workflows/build-debug-apk.yml`) and puts it under these files. It then runs
+`.github/scripts/apply_overlay.py` (copies the new files, makes the few small edits to existing files of the fork,
 every edit by anchor and safe to repeat) and `.github/scripts/english_only.py` (removes the translations for this
-build), and then builds as before. The paths below are paths in the Fenix fork after that step. When the fork changes
+build), and builds as before. The paths below are paths in the Fenix fork after that step. When the fork changes
 one of the files the script edits and an anchor is gone, the script stops and names the file.
 
 The browser can download web novels as EPUB files. The engine is **WebToEpub** (its "experimental tab mode" branch),
