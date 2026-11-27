@@ -32,7 +32,7 @@ class NovelLibraryScreen(activity: NovelScraperActivity) : NovelScreen(activity)
     }
 
     override fun onShown() {
-        activity.lifecycleScope.launch {
+        activity.launchSafely {
             val entries = withContext(Dispatchers.IO) { activity.library.list().map { it to activity.library.sizeOf(it.id) } }
             list.removeAllViews()
             if (entries.isEmpty()) {
@@ -79,7 +79,7 @@ class NovelLibraryScreen(activity: NovelScraperActivity) : NovelScreen(activity)
 
     private fun write(entry: LibraryEntry, uri: Uri) {
         activity.toast("Writing the EPUB...")
-        activity.lifecycleScope.launch {
+        activity.launchSafely {
             val problem = withContext(Dispatchers.IO) {
                 val temporary = File(activity.cacheDir, "novel-${entry.id}.epub")
                 try {
@@ -108,7 +108,7 @@ class NovelLibraryScreen(activity: NovelScraperActivity) : NovelScreen(activity)
             .setTitle("Delete from the library?")
             .setMessage("The downloaded chapters of \"${entry.info.title}\" are removed from the app. EPUB files you saved are not touched.")
             .setPositiveButton("Delete") { _, _ ->
-                activity.lifecycleScope.launch {
+                activity.launchSafely {
                     withContext(Dispatchers.IO) { activity.library.delete(entry.id) }
                     onShown()
                 }

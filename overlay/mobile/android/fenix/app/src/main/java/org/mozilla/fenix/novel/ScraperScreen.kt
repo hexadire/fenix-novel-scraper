@@ -16,6 +16,7 @@ import android.widget.TextView
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -137,7 +138,7 @@ class ScraperScreen(activity: NovelScraperActivity) : NovelScreen(activity) {
         loading = true
         status.text = "Reading the page..."
         activity.prefs.lastUrl = address
-        activity.lifecycleScope.launch {
+        activity.launchSafely {
             try {
                 val plugin = activity.engine.pluginFor(address)
                 val result = withContext(Dispatchers.Default) {
@@ -148,6 +149,10 @@ class ScraperScreen(activity: NovelScraperActivity) : NovelScreen(activity) {
                 if (plugin == null) offerPlugin(result)
             } catch (e: NovelException) {
                 status.text = "Could not read the page: ${e.message}"
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                status.text = "Could not read the page: ${e.javaClass.simpleName}: ${e.message}"
             } finally {
                 loading = false
             }

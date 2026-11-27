@@ -66,14 +66,14 @@ class NovelPluginsScreen(activity: NovelScraperActivity) : NovelScreen(activity)
     // region Imported
 
     private fun showImported() {
-        activity.lifecycleScope.launch {
+        activity.launchSafely {
             val entries = withContext(Dispatchers.IO) { activity.plugins.listImported() }
             importedBox.removeAllViews()
             if (entries.isEmpty()) importedBox.addView(ui.note("No plugins imported yet."))
             for (entry in entries) {
                 val plugin = entry.plugin
                 val switch = ui.switch(plugin.name, entry.enabled) { enabled ->
-                    activity.lifecycleScope.launch { withContext(Dispatchers.IO) { activity.plugins.setEnabled(plugin.id, enabled) } }
+                    activity.launchSafely { withContext(Dispatchers.IO) { activity.plugins.setEnabled(plugin.id, enabled) } }
                 }
                 val buttons = ui.row(
                     ui.button("Export") { export(plugin) },
@@ -89,7 +89,7 @@ class NovelPluginsScreen(activity: NovelScraperActivity) : NovelScreen(activity)
     private fun importFiles() {
         activity.pickFiles { uris ->
             if (uris.isNotEmpty()) {
-                activity.lifecycleScope.launch {
+                activity.launchSafely {
                     val messages = withContext(Dispatchers.IO) { uris.map { importUri(it) } }
                     activity.message("Import", messages.joinToString("\n\n"))
                     showImported()
@@ -128,7 +128,7 @@ class NovelPluginsScreen(activity: NovelScraperActivity) : NovelScreen(activity)
             activity.toast("The clipboard has no text.")
             return
         }
-        activity.lifecycleScope.launch {
+        activity.launchSafely {
             val message = withContext(Dispatchers.IO) { describe("Clipboard", activity.plugins.add(text)) }
             activity.message("Import", message)
             showImported()
@@ -155,7 +155,7 @@ class NovelPluginsScreen(activity: NovelScraperActivity) : NovelScreen(activity)
     private fun export(plugin: SitePlugin) {
         activity.pickJson(plugin.id + ".json") { uri ->
             if (uri != null) {
-                activity.lifecycleScope.launch {
+                activity.launchSafely {
                     val saved = withContext(Dispatchers.IO) {
                         try {
                             activity.contentResolver.openOutputStream(uri, "wt")?.use { it.write(plugin.source.toByteArray(Charsets.UTF_8)) } != null
@@ -174,7 +174,7 @@ class NovelPluginsScreen(activity: NovelScraperActivity) : NovelScreen(activity)
             .setTitle("Delete this plugin?")
             .setMessage("${plugin.name} will be removed. For its sites the scraper goes back to the built-in plugin or to automatic detection.")
             .setPositiveButton("Delete") { _, _ ->
-                activity.lifecycleScope.launch {
+                activity.launchSafely {
                     withContext(Dispatchers.IO) { activity.plugins.delete(plugin.id) }
                     showImported()
                 }
@@ -188,7 +188,7 @@ class NovelPluginsScreen(activity: NovelScraperActivity) : NovelScreen(activity)
     // region Built-in
 
     private fun showBuiltIn() {
-        activity.lifecycleScope.launch {
+        activity.launchSafely {
             val all = withContext(Dispatchers.IO) { activity.plugins.builtIn() }
             val needle = search.trim().lowercase()
             val shown = if (needle.isEmpty()) all.take(MAX_SHOWN) else all.filter { plugin ->

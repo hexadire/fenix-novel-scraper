@@ -87,6 +87,10 @@ object NovelJob {
             } catch (e: IOException) {
                 addLog("Problem: ${e.message}")
                 publish(JobStatus(false, status.done, status.total, "Stopped.", e.message ?: "Writing the file failed.", true))
+            } catch (e: Exception) {
+                val text = e.javaClass.simpleName + ": " + (e.message ?: "")
+                addLog("Problem: $text")
+                publish(JobStatus(false, status.done, status.total, "Stopped.", text, true))
             }
         }
     }

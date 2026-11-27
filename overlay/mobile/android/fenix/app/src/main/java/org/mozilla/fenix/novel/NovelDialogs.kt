@@ -24,7 +24,7 @@ import java.io.IOException
  */
 class SiteSettingsDialog(private val activity: NovelScraperActivity, private val analysis: Analysis) {
     private val ui = NovelUi(activity)
-    private val host = NovelText.hostOf(analysis.tocDocumentUrl).removePrefix("www.")
+    private val host = NovelText.hostOf(analysis.tocDocumentUrl).lowercase().removePrefix("www.")
     private val pluginId = "custom-" + host.replace(Regex("[^a-z0-9]+"), "-").trim('-')
 
     fun show() {
@@ -85,7 +85,7 @@ class SiteSettingsDialog(private val activity: NovelScraperActivity, private val
             return
         }
         val json = pluginJson(chapterCss, contentCss, titleCss, removeCss)
-        activity.lifecycleScope.launch {
+        activity.launchSafely {
             val result = withContext(Dispatchers.IO) { activity.plugins.replace(pluginId, json) }
             if (result is NovelPluginStore.AddResult.Invalid) {
                 activity.message("These settings are not valid", result.message)
@@ -109,7 +109,7 @@ class SiteSettingsDialog(private val activity: NovelScraperActivity, private val
             return
         }
         activity.toast("Reading the chapter...")
-        activity.lifecycleScope.launch {
+        activity.launchSafely {
             val text = try {
                 val result = withContext(Dispatchers.Default) { activity.engine.readChapter(plugin, chapter, emptySet()) }
                 val xhtml = withContext(Dispatchers.Default) { result.prepared.xhtml() }
@@ -158,7 +158,7 @@ class PluginRequestFlow(private val activity: NovelScraperActivity, private val 
             return
         }
         activity.toast("Reading chapter 1...")
-        activity.lifecycleScope.launch {
+        activity.launchSafely {
             try {
                 val facts = withContext(Dispatchers.Default) { NovelClaudeRequest.readChapter(activity.fetcher, chapterUrl) }
                 finish(facts)
@@ -174,7 +174,7 @@ class PluginRequestFlow(private val activity: NovelScraperActivity, private val 
     }
 
     private fun finish(facts: NovelClaudeRequest.ChapterFacts?) {
-        activity.lifecycleScope.launch {
+        activity.launchSafely {
             val text = withContext(Dispatchers.Default) { NovelClaudeRequest.build(activity, analysis, facts) }
             val name = NovelClaudeRequest.fileName(analysis.tocDocumentUrl)
             MaterialAlertDialogBuilder(activity)
@@ -200,7 +200,7 @@ class PluginRequestFlow(private val activity: NovelScraperActivity, private val 
     private fun save(name: String, text: String) {
         activity.pickMarkdown(name) { uri ->
             if (uri != null) {
-                activity.lifecycleScope.launch {
+                activity.launchSafely {
                     val saved = withContext(Dispatchers.IO) {
                         try {
                             activity.contentResolver.openOutputStream(uri, "wt")?.use { it.write(text.toByteArray(Charsets.UTF_8)) } != null

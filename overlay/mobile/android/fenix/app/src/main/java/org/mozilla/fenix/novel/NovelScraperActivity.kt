@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.StrictMode
 import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
@@ -19,7 +20,11 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.appbar.MaterialToolbar
+import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import mozilla.components.ui.icons.R as iconsR
 
 /** One screen of the novel scraper; the activity shows one at a time and keeps a stack for the back button. */
@@ -53,6 +58,9 @@ class NovelScraperActivity : AppCompatActivity() {
     private lateinit var mainScreen: ScraperScreen
     private val stack = ArrayList<NovelScreen>()
 
+    /** The StrictMode policy of the main thread before this screen was opened (see onCreate). */
+    private var originalThreadPolicy: StrictMode.ThreadPolicy? = null
+
     private var pendingUri: ((Uri?) -> Unit)? = null
     private var pendingMany: ((List<Uri>) -> Unit)? = null
 
@@ -72,6 +80,11 @@ class NovelScraperActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Debug builds of Fenix stop the app at any read or write of a file or of the settings on the main thread
+        // (StrictMode with penaltyDeath). The screens of the scraper read their settings, plugins and library on the main
+        // thread, so the check is switched off while the scraper is open and restored when it is closed.
+        originalThreadPolicy = StrictMode.getThreadPolicy()
+        StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.LAX)
         super.onCreate(savedInstanceState)
         toolbar = MaterialToolbar(this).apply {
             setNavigationIcon(iconsR.drawable.mozac_ic_back_24)
@@ -99,6 +112,12 @@ class NovelScraperActivity : AppCompatActivity() {
         mainScreen = ScraperScreen(this)
         if (stack.isEmpty()) show(mainScreen)
         handleIntent(intent)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        originalThreadPolicy?.let { StrictMode.setThreadPolicy(it) }
+        originalThreadPolicy = null
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -206,9 +225,23 @@ class NovelScraperActivity : AppCompatActivity() {
         done?.invoke(uri)
     }
 
+    /**
+     * Starts work on the main thread's scope that may suspend. A problem that nobody caught is shown in a message, so it does
+     * not stop the whole browser.
+     */
+    fun launchSafely(block: suspend CoroutineScope.() -> Unit) {
+        val handler = CoroutineExceptionHandler { _, error ->
+            runOnUiThread {
+                message("Something went wrong", (error.javaClass.simpleName + ": " + (error.message ?: "")).trim())
+            }
+        }
+        lifecycleScope.launch(handler, block = block)
+    }
+
     fun toast(text: String) = Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
 
     fun message(title: String, text: String) {
+        if (isFinishing || isDestroyed) return
         MaterialAlertDialogBuilder(this).setTitle(title).setMessage(text).setPositiveButton(android.R.string.ok, null).show()
     }
 
