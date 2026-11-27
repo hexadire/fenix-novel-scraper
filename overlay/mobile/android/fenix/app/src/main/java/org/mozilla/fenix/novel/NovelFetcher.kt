@@ -93,7 +93,7 @@ class NovelFetcher(context: Context, private val userAgent: String? = null) {
     }
 
     private fun charsetOf(contentType: String): String? {
-        val match = Regex("charset=([\\w-]+)", RegexOption.IGNORE_CASE).find(contentType)
+        val match = Regex("charset=([A-Za-z0-9_-]+)", RegexOption.IGNORE_CASE).find(contentType)
         return match?.groupValues?.get(1)
     }
 

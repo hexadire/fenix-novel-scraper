@@ -10,7 +10,8 @@ import java.net.URI
 
 /** Small helpers for the placeholders and the JSON paths of API based plugins. */
 object NovelText {
-    private val PLACEHOLDER = Regex("\\{([A-Za-z0-9_.\\[\\]-]+)}")
+    // Android's regex engine (ICU) wants every brace escaped, also inside a character class.
+    private val PLACEHOLDER = Regex("\\{([^\\{\\}]+)\\}")
 
     /**
      * Replaces `{name}` by the value of the variable [name], and `{item.path}` by the value at that path of [item].
@@ -29,7 +30,7 @@ object NovelText {
     /** Follows a path like `data.chapters[0].title` through JSON. Returns null when the path leads nowhere. */
     fun path(root: Any?, path: String): Any? {
         var current: Any? = root
-        val tokens = Regex("[^.\\[\\]]+|\\[\\d+]").findAll(path).map { it.value }.toList()
+        val tokens = Regex("[^.\\[\\]]+|\\[\\d+\\]").findAll(path).map { it.value }.toList()
         for (token in tokens) {
             current = when {
                 token.startsWith("[") -> (current as? JSONArray)?.opt(token.substring(1, token.length - 1).toInt())
@@ -71,7 +72,7 @@ object NovelText {
 
     /** A name that can be used for a file. */
     fun safeFileName(name: String): String {
-        val cleaned = name.replace(Regex("[\\\\/:*?\"<>|\\p{Cntrl}]"), "_").replace(Regex("\\s+"), " ").trim().trim('.')
+        val cleaned = name.replace(Regex("[\\\\/:*?\"<>|\\u0000-\\u001F]"), "_").replace(Regex("\\s+"), " ").trim().trim('.')
         return cleaned.ifEmpty { "novel" }.take(MAX_FILE_NAME)
     }
 
@@ -79,7 +80,7 @@ object NovelText {
         .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
 
     /** Removes characters that cannot be in an XML document. */
-    fun xmlSafe(text: String): String = text.replace(Regex("[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\uFFFE\\uFFFF]"), "")
+    fun xmlSafe(text: String): String = text.replace(Regex("[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F]"), "")
 
     private const val MAX_FILE_NAME = 120
 }

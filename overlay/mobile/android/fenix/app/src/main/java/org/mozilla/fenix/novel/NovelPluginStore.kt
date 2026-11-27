@@ -59,6 +59,8 @@ class NovelPluginStore(context: Context) {
                     list.add(SitePlugin.parse(item.toString(), builtIn = true, idHint = "builtin-" + item.optString("id", i.toString())))
                 } catch (e: NovelException) {
                     logger.warn("A built-in plugin was left out: ${e.message}")
+                } catch (e: RuntimeException) {
+                    logger.warn("A built-in plugin was left out: ${e.message}")
                 }
             }
         } catch (e: IOException) {
@@ -167,6 +169,8 @@ class NovelPluginStore(context: Context) {
         } catch (e: IOException) {
             null
         } catch (e: NovelException) {
+            null
+        } catch (e: RuntimeException) {
             null
         }
     }
