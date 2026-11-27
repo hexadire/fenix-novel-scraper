@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
+<!-- The texts of the novel scraper that Android needs as resources (the menu, Settings and the backup). The screens of the
+     scraper itself are in code (package org.mozilla.fenix.novel). -->
+<resources>
+    <!-- Main menu -->
+    <string name="novel_menu_item">Download novel</string>
+
+    <!-- Settings -->
+    <string name="pref_key_novel_scraper" translatable="false">pref_key_novel_scraper</string>
+    <string name="novel_scraper_settings_title">Novel scraper</string>
+    <string name="novel_scraper_settings_summary">Download novels as EPUB, library, plugins and options</string>
+
+    <!-- Backup and restore: the name of the section -->
+    <string name="backup_section_novel_plugins">Novel scraper plugins</string>
+</resources>

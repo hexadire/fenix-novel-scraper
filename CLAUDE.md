@@ -89,54 +89,48 @@ rest), and update `README.md` when the list of sections or the rules change.
 
 ## Novel scraper
 
-**How the build is put together.** The novel scraper is added to the Fenix source at build time. The workflow uses the
-Fenix source of this repository, or, when this repository does not have it, checks out the repository named in
-`BASE_REPO` (top of `.github/workflows/build-debug-apk.yml`) and puts it under these files. It then runs
-`.github/scripts/apply_overlay.py` (copies the new files, makes the few small edits to existing files of the fork,
-every edit by anchor and safe to repeat) and `.github/scripts/english_only.py` (removes the translations for this
-build), and builds as before. The paths below are paths in the Fenix fork after that step. When the fork changes
-one of the files the script edits and an anchor is gone, the script stops and names the file.
+The browser can download web novels as EPUB files. It is part of the app, written in Kotlin (package
+`org.mozilla.fenix.novel`), with its own screens, its own engine and its own plugin format. WebToEpub (the browser extension)
+was the model for the features, not part of the code.
 
-The browser can download web novels as EPUB files. The engine is **WebToEpub** (its "experimental tab mode" branch),
-built into the app as an extension; the app adds what an extension cannot do alone: the store of plugins, the settings
-screen for them and the backup of them.
+**Where it is in the app**
+- Main menu → **Download novel** (the item `NovelScraperMenuItem`, in the tools group of the main menu): opens the scraper with the
+  page that is open.
+- Settings → **Novel scraper**; and Share → the app, which opens it with the shared address.
+- Screens (`NovelScraperActivity`): the main screen (address, details, download), **Chapters** (select, rename, reverse, filter,
+  range, edit/copy addresses), **Library**, **Plugins** and **Options**. All of them are made in code, like the backup screen.
 
-How the parts fit together:
+**How it works**
+- `NovelEngine` reads the page of a novel and its chapters with Jsoup. Pages are fetched through the browser's own network client
+  (`components.core.client`, `NovelFetcher`), so the cookies of the tabs are used and a site that was opened in the browser first
+  (to pass a check) can be read.
+- A **plugin** (`SitePlugin`, JSON, described in `assets/novel/plugin_guide.md`) says how to read one site: CSS selectors for
+  the details, the chapter list (several pages, or a JSON API) and the text, plus what to remove. Everything a plugin leaves out is
+  found by automatic detection (`NovelDetector`). 267 plugins come with the app (`assets/novel/builtin_plugins.json`, made from the
+  simple parsers of WebToEpub by `tools/convert_parsers.py`; 89 of them also know the chapter list, the others only the text).
+  Imported plugins (`NovelPluginStore`, JSON files in `filesDir/novel_plugins_json/`) win over built-in ones.
+- **No plugin for the site?** After reading the page, the app asks whether to create one (`ScraperScreen.offerPlugin`). When the person
+  agrees, `NovelClaudeRequest` reads the first chapter and writes one Markdown file with the task, the rules, the shortened HTML of the
+  table of contents page and of chapter 1, and the plugin format. The person gives it to Claude and imports the JSON that comes back
+  under Plugins (a pasted chat answer works). "Site settings" (`SiteSettingsDialog`) makes a plugin from selectors typed by hand.
+- `NovelJob` downloads the chapters one by one into the **library** (`NovelLibrary`, `filesDir/novel_library/`: the text of every
+  chapter and the images), so a stopped download continues and new chapters can be added later; then `EpubWriter` writes the EPUB
+  (version 3 or 2) to the place the person picked (Storage Access Framework, no storage permission).
 
-- **`mobile/android/fenix/app/src/main/assets/extensions/novel_scraper/`** is WebToEpub (`plugin/` of its repository,
-  with the parsers in `js/parsers/`). It is installed by `NovelScraper.install()` when the engine is made (one line in
-  `components/Core.kt`, next to `WebCompatFeature.install`) and shows up in the main menu, under Extensions, as "Novel
-  Scraper". Its toolbar popup opens `popup.html?id=<tab>&url=<address>` in a tab; that page reads the novel.
-- **Plugins** are JavaScript files in the format of the parsers (a class that extends `Parser`, registered with
-  `parserFactory.register`). The person imports them in Settings → Novel scraper plugins (`NovelPluginsActivity`).
-  `NovelPluginStore` keeps them as JSON files in `filesDir/novel_plugins/`. When the scraper page opens it asks for them:
-  `js/NovelPlugins.js` → `background.js` (native message) → `NovelScraperBridge` in `NovelScraper.kt`, and runs the
-  enabled ones with `eval`. An imported plugin wins over a built-in parser for the same host.
-- **No plugin for the site?** `js/PluginRequest.js` shows a popup. When the person agrees, it captures the table of
-  contents page and the first chapter (shortened HTML, link list, script hints) and writes one Markdown file with the
-  task, the rules, the site data, the parser reference (`claude/AGENTS.reference.md`), `Template.js` and three example
-  parsers. The person gives it to Claude and imports the JavaScript that comes back.
+**Things that are easy to break**
+1. The application id is `dev.personal.novelscraper` (+ `.fenix.debug`): see rule 1 of the backup section above; it is set by
+   `.github/scripts/apply_overlay.py` (`NEW_APPLICATION_ID`). Never change it.
+2. `implementation libs.jsoup` is added to `app/build.gradle` by the script (Jsoup is in the version catalog already).
+3. Plugins run no JavaScript. A site that fills its page by scripts needs `toc.api` / `chapter.api` in its plugin.
+4. The backup saves the imported plugins (`NovelPluginsSection`); it does not save the library, the options or which built-in plugins
+   were switched off.
+5. `NovelExtensionCleanup` (called from `Core.kt`) removes the first version of the scraper, a built-in extension, from browsers that
+   still have it. It can be taken out when no such install is left.
 
-Things that are easy to break:
-
-1. **The extension is Manifest V2 on purpose.** Plugins are run with `eval`, which Firefox only allows for MV2
-   extensions that say so in `content_security_policy` (`'unsafe-eval'`). Do not convert it to MV3 and do not remove that
-   entry. `scripting` is requested as well, because a few parsers call `chrome.scripting.executeScript`.
-2. **Keep both sides in step:** `EXTENSION_ID` (also in `manifest.json`), `MESSAGE_NAME` (also `APP` in `background.js`)
-   and the reply of the bridge (`{ ok, plugins: [{ id, name, enabled, hosts, source }] }`, read in `NovelPlugins.js`).
-3. **zip.js and DOMPurify are not in the repository.** The step "Fetch the libraries of the novel scraper" in the
-   workflow downloads them to `novel_scraper/lib/` (`popup.html` loads them from there). A local build has to do the
-   same by hand.
-4. **Updating WebToEpub:** copy the new `plugin/` over `novel_scraper/` and re-apply what differs from upstream:
-   `manifest.json` (MV2, permissions, `background`, `browser_action`, CSP), `popup.html` (viewport, `css/mobile.css`,
-   `lib/` paths, the scripts `NovelPlugins.js` and `PluginRequest.js` before `main.js`), `js/main.js` (the calls to
-   `NovelPlugins.loadAll()` and `PluginRequest.offerIfNoPlugin()`, and reading the page by address when the tab
-   cannot be read), `js/Download.js` (the `browser.downloads` guard). New files: `background.js`, `css/mobile.css`,
-   `js/NovelPlugins.js`, `js/PluginRequest.js`, `claude/AGENTS.reference.md`.
-5. **Backup:** the plugins are saved (`NovelPluginsSection`). What the scraper page keeps itself (its options, its
-   library of downloaded novels, the "do not ask again" choices) lives in the extension's storage, which the backup
-   leaves out like all add-ons.
-6. **Mozilla's own files:** the script `apply_overlay.py` edits `Core.kt` (install), `AndroidManifest.xml` (activity),
-   `preferences.xml` and `SettingsFragment.kt` (the settings entry) and `BackupSections.kt` (the section). Everything
-   else is new files, copied as they are. The texts, including the name of the backup section, are in
-   `novel_scraper_strings.xml`.
+**How the build is put together.** This repository keeps the novel scraper in `overlay/` (the same paths as in the Fenix fork). The
+workflow uses the Fenix source of this repository, or `fenix-source.zip` in its root, or, when set, the repository named in
+`BASE_REPO` (top of `.github/workflows/build-debug-apk.yml`). It then runs `.github/scripts/apply_overlay.py` (removes what the old
+extension version left, copies `overlay/`, and makes the few small edits to Mozilla's files, every edit by anchor and safe to repeat:
+`app/build.gradle`, `Core.kt`, `SettingsFragment.kt`, `preferences.xml`, `AndroidManifest.xml`, `MainMenu.kt`, `BackupSections.kt`)
+and `.github/scripts/english_only.py` (removes the translations for this build), and builds as before. When the fork changes one of
+the edited files and an anchor is gone, the script stops and names the file.

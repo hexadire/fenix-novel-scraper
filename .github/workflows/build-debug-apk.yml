@@ -176,22 +176,6 @@ jobs:
           grep -q "BEGIN ICANN DOMAINS" netwerk/dns/effective_tld_names.dat
           echo "Public Suffix List: $(wc -l < netwerk/dns/effective_tld_names.dat) lines"
 
-      - name: Fetch the libraries of the novel scraper
-        # The novel scraper (assets/extensions/novel_scraper) is WebToEpub. Its page needs zip.js (writes the EPUB)
-        # and DOMPurify (cleans chapters). They are not kept in the repository: they come from npm, the same
-        # packages that WebToEpub's own `npm install` copies (package.json there).
-        working-directory: mobile/android/fenix/app/src/main/assets/extensions/novel_scraper
-        run: |
-          mkdir -p lib
-          LIBS="$(mktemp -d)"
-          (cd "$LIBS" && npm init -y >/dev/null && npm install --no-audit --no-fund "@zip.js/zip.js@~2.7.72" "dompurify@^3.2.6")
-          cp "$LIBS/node_modules/@zip.js/zip.js/dist/zip-no-worker.min.js" lib/zip-no-worker.min.js
-          cp "$LIBS/node_modules/dompurify/dist/purify.min.js" lib/purify.min.js
-          test "$(wc -c < lib/zip-no-worker.min.js)" -gt 10000
-          test "$(wc -c < lib/purify.min.js)" -gt 10000
-          grep -q 'lib/zip-no-worker.min.js' popup.html && grep -q 'lib/purify.min.js' popup.html
-          echo "zip.js: $(wc -c < lib/zip-no-worker.min.js) bytes, DOMPurify: $(wc -c < lib/purify.min.js) bytes"
-
       - name: Create Python venv with glean_parser
         # Mozilla's `./mach` normally provides this venv. The Glean Gradle plugin prints which
         # glean_parser it needs ("Requires glean_parser X.Y"); `~=X.Y` accepts any compatible release.
